@@ -150,11 +150,22 @@ const useStyles = createStyles(({ css, token }) => {
       flex-direction: column;
       align-items: center;
       position: relative;
-      min-width: 20em;
+      min-width: 16em;
       padding: 0 2em;
 
       .workflow-node-list {
         flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+
+        > :last-child {
+          > .workflow-add-node-button {
+            &:after {
+              display: none;
+            }
+          }
+        }
       }
 
       .workflow-branch-lines {
@@ -240,7 +251,7 @@ const useStyles = createStyles(({ css, token }) => {
 
     nodeCardClass: css`
       position: relative;
-      width: 20em;
+      width: 16em;
       background: ${token.colorBgContainer};
       padding: 1em;
       box-shadow: ${token.boxShadowTertiary};
@@ -361,13 +372,31 @@ const useStyles = createStyles(({ css, token }) => {
     `,
 
     addButtonClass: css`
+      position: relative;
       flex-shrink: 0;
-      padding: 2em 0;
+      padding: 1em 0;
 
       > .ant-btn {
         &:disabled {
           visibility: hidden;
         }
+      }
+
+      &:after {
+        content: '';
+        display: block;
+        position: absolute;
+        bottom: 0.1em;
+        left: calc(50% - 0.25em);
+        width: 0.5em;
+        height: 0.5em;
+        border: 1px solid ${token.colorBorder};
+        border-width: 0 1px 1px 0;
+        transform: rotate(45deg);
+      }
+
+      &:first-child:last-child:after {
+        display: none;
       }
     `,
 
@@ -394,6 +423,9 @@ const useStyles = createStyles(({ css, token }) => {
       transform: translateY(-50%);
       width: 2em;
       height: 6em;
+      flex-shrink: 0;
+      padding: 2em 0;
+      font-size: 14px;
     `,
 
     terminalClass: css`
