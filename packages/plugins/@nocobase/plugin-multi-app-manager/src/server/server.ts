@@ -13,7 +13,10 @@ import lodash from 'lodash';
 import path from 'path';
 import { ApplicationModel } from '../server';
 
-export type AppDbCreator = (app: Application, options?: Transactionable & { context?: any }) => Promise<void>;
+export type AppDbCreator = (
+  app: Application,
+  options?: Transactionable & { context?: any; applicationModel?: ApplicationModel },
+) => Promise<void>;
 export type AppOptionsFactory = (appName: string, mainApp: Application) => any;
 export type SubAppUpgradeHandler = (mainApp: Application) => Promise<void>;
 
@@ -152,6 +155,38 @@ export class PluginMultiAppManagerServer extends Plugin {
     return lodash.cloneDeep(lodash.omit(oldConfig, ['migrator']));
   }
 
+  async handleSyncMessage(message) {
+    const { type } = message;
+
+    if (type === 'subAppStarted') {
+      const { appName } = message;
+      const model = await this.app.db.getRepository('applications').findOne({
+        filter: {
+          name: appName,
+        },
+      });
+
+      if (!model) {
+        return;
+      }
+
+      if (AppSupervisor.getInstance().hasApp(appName)) {
+        return;
+      }
+
+      const subApp = model.registerToSupervisor(this.app, {
+        appOptionsFactory: this.appOptionsFactory,
+      });
+
+      subApp.runCommand('start', '--quickstart');
+    }
+
+    if (type === 'removeApp') {
+      const { appName } = message;
+      await AppSupervisor.getInstance().removeApp(appName);
+    }
+  }
+
   setSubAppUpgradeHandler(handler: SubAppUpgradeHandler) {
     this.subAppUpgradeHandler = handler;
   }
@@ -189,13 +224,25 @@ export class PluginMultiAppManagerServer extends Plugin {
           appOptionsFactory: this.appOptionsFactory,
         });
 
-        // create database
-        await this.appDbCreator(subApp, {
-          transaction,
-          context: options.context,
+        subApp.on('afterStart', async () => {
+          this.sendSyncMessage({
+            type: 'subAppStarted',
+            appName: name,
+          });
         });
 
-        const startPromise = subApp.runCommand('start', '--quickstart');
+        const quickstart = async () => {
+          // create database
+          await this.appDbCreator(subApp, {
+            transaction,
+            applicationModel: model,
+            context: options.context,
+          });
+
+          await subApp.runCommand('start', '--quickstart');
+        };
+
+        const startPromise = quickstart();
 
         if (options?.context?.waitSubAppInstall) {
           await startPromise;
@@ -203,8 +250,18 @@ export class PluginMultiAppManagerServer extends Plugin {
       },
     );
 
-    this.db.on('applications.afterDestroy', async (model: ApplicationModel) => {
+    this.db.on('applications.afterDestroy', async (model: ApplicationModel, options) => {
       await AppSupervisor.getInstance().removeApp(model.get('name') as string);
+
+      this.sendSyncMessage(
+        {
+          type: 'removeApp',
+          appName: model.get('name'),
+        },
+        {
+          transaction: options.transaction,
+        },
+      );
     });
 
     const self = this;
@@ -248,6 +305,13 @@ export class PluginMultiAppManagerServer extends Plugin {
 
       const subApp = applicationRecord.registerToSupervisor(mainApp, {
         appOptionsFactory: self.appOptionsFactory,
+      });
+
+      subApp.on('afterStart', async () => {
+        this.sendSyncMessage({
+          type: 'subAppStarted',
+          appName: name,
+        });
       });
 
       // must skip load on upgrade

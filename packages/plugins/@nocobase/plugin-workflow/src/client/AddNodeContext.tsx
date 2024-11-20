@@ -146,7 +146,7 @@ function useAddNodeSubmitAction() {
             },
           },
         });
-        if (form.values.downstreamBranchIndex !== false && newNode.downstreamId) {
+        if (typeof form.values.downstreamBranchIndex === 'number' && newNode.downstreamId) {
           await api.resource('flow_nodes').update({
             filterByTk: newNode.downstreamId,
             values: {
@@ -204,7 +204,7 @@ const DownstreamBranchIndex = observer((props) => {
       return [];
     }
     const branching =
-      typeof instruction.branching === 'function' ? instruction.branching(values.config) : instruction.branching;
+      typeof instruction.branching === 'function' ? instruction.branching(values.config ?? {}) : instruction.branching;
     if (!branching) {
       return [];
     }

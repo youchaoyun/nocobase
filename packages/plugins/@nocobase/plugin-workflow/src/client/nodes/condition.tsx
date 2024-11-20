@@ -27,6 +27,12 @@ const BRANCH_INDEX = {
   ON_FALSE: 0,
 } as const;
 
+const BRANCH_INDEX = {
+  DEFAULT: null,
+  ON_TRUE: 1,
+  ON_FALSE: 0,
+} as const;
+
 export default class extends Instruction {
   title = `{{t("Condition", { ns: "${NAMESPACE}" })}}`;
   type = 'condition';

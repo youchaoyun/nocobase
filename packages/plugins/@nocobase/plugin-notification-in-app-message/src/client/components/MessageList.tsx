@@ -26,7 +26,7 @@ import {
   inboxVisible,
 } from '../observables';
 
-export const MessageList = observer(() => {
+const MessageList = observer(() => {
   const { t } = useLocalTranslation();
   const navigate = useNavigate();
   const { token } = theme.useToken();
@@ -129,8 +129,8 @@ export const MessageList = observer(() => {
               <Descriptions key={index} column={1}>
                 <Descriptions.Item label={t('Content')}>
                   {' '}
-                  <Tooltip title={message.content.length > 100 ? message.content : ''} mouseEnterDelay={0.5}>
-                    {message.content.slice(0, 100) + (message.content.length > 100 ? '...' : '')}{' '}
+                  <Tooltip title={message.content?.length > 100 ? message.content : ''} mouseEnterDelay={0.5}>
+                    {message.content?.slice(0, 100) + (message.content?.length > 100 ? '...' : '')}{' '}
                   </Tooltip>
                 </Descriptions.Item>
                 <Descriptions.Item label={t('Datetime')}>{dayjs(message.receiveTimestamp).fromNow()}</Descriptions.Item>
@@ -172,3 +172,5 @@ export const MessageList = observer(() => {
     </ConfigProvider>
   );
 });
+
+export default MessageList;

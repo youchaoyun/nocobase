@@ -24,7 +24,17 @@ import {
 } from '@nocobase/logger';
 import { ResourceOptions, Resourcer } from '@nocobase/resourcer';
 import { Telemetry, TelemetryOptions } from '@nocobase/telemetry';
-import { applyMixins, AsyncEmitter, importModule, Toposort, ToposortOptions } from '@nocobase/utils';
+
+import {
+  applyMixins,
+  AsyncEmitter,
+  importModule,
+  Toposort,
+  ToposortOptions,
+  wrapMiddlewareWithLogging,
+} from '@nocobase/utils';
+import { LockManager, LockManagerOptions } from '@nocobase/lock-manager';
+
 import { Command, CommandOptions, ParseOptions } from 'commander';
 import { randomUUID } from 'crypto';
 import glob from 'glob';
@@ -59,7 +69,8 @@ import { dataTemplate } from './middlewares/data-template';
 import validateFilterParams from './middlewares/validate-filter-params';
 import { Plugin } from './plugin';
 import { InstallOptions, PluginManager } from './plugin-manager';
-import { SyncManager } from './sync-manager';
+import { createPubSubManager, PubSubManager, PubSubManagerOptions } from './pub-sub-manager';
+import { SyncMessageManager } from './sync-message-manager';
 
 import packageJson from '../package.json';
 
@@ -97,6 +108,8 @@ export interface ApplicationOptions {
    */
   resourcer?: ResourceManagerOptions;
   resourceManager?: ResourceManagerOptions;
+  pubSubManager?: PubSubManagerOptions;
+  syncMessageManager?: any;
   bodyParser?: any;
   cors?: any;
   dataWrapping?: boolean;
@@ -111,6 +124,7 @@ export interface ApplicationOptions {
   pmSock?: string;
   name?: string;
   authManager?: AuthManagerOptions;
+  lockManager?: LockManagerOptions;
   /**
    * @internal
    */
@@ -216,7 +230,8 @@ export class Application<StateT = DefaultState, ContextT = DefaultContext> exten
   /**
    * @internal
    */
-  public syncManager: SyncManager;
+  public pubSubManager: PubSubManager;
+  public syncMessageManager: SyncMessageManager;
   public requestLogger: Logger;
   protected plugins = new Map<string, Plugin>();
   protected _appSupervisor: AppSupervisor = AppSupervisor.getInstance();
@@ -225,6 +240,8 @@ export class Application<StateT = DefaultState, ContextT = DefaultContext> exten
   private _maintainingCommandStatus: MaintainingCommandStatus;
   private _maintainingStatusBeforeCommand: MaintainingCommandStatus | null;
   private _actionCommand: Command;
+
+  public lockManager: LockManager;
 
   constructor(public options: ApplicationOptions) {
     super();
@@ -235,6 +252,12 @@ export class Application<StateT = DefaultState, ContextT = DefaultContext> exten
     if (!options.skipSupervisor) {
       this._appSupervisor.addApp(this);
     }
+  }
+
+  private static staticCommands = [];
+
+  static addCommand(callback: (app: Application) => void) {
+    this.staticCommands.push(callback);
   }
 
   private _sqlLogger: Logger;
@@ -440,6 +463,10 @@ export class Application<StateT = DefaultState, ContextT = DefaultContext> exten
     return packageJson.version;
   }
 
+  getPackageVersion() {
+    return packageJson.version;
+  }
+
   /**
    * This method is deprecated and should not be used.
    * Use {@link #this.pm.addPreset()} instead.
@@ -455,7 +482,7 @@ export class Application<StateT = DefaultState, ContextT = DefaultContext> exten
     middleware: Koa.Middleware<StateT & NewStateT, ContextT & NewContextT>,
     options?: ToposortOptions,
   ) {
-    this.middleware.add(middleware, options);
+    this.middleware.add(wrapMiddlewareWithLogging(middleware, this.logger), options);
     return this;
   }
 
@@ -524,6 +551,10 @@ export class Application<StateT = DefaultState, ContextT = DefaultContext> exten
       await this.cacheManager.close();
     }
 
+    if (this.pubSubManager) {
+      await this.pubSubManager.close();
+    }
+
     if (this.telemetry.started) {
       await this.telemetry.shutdown();
     }
@@ -538,6 +569,11 @@ export class Application<StateT = DefaultState, ContextT = DefaultContext> exten
     }
 
     this._loaded = false;
+  }
+
+  async createCacheManager() {
+    this._cacheManager = await createCacheManager(this, this.options.cacheManager);
+    return this._cacheManager;
   }
 
   async load(options?: LoadOptions) {
@@ -570,7 +606,7 @@ export class Application<StateT = DefaultState, ContextT = DefaultContext> exten
       await this.cacheManager.close();
     }
 
-    this._cacheManager = await createCacheManager(this, this.options.cacheManager);
+    this._cacheManager = await this.createCacheManager();
 
     this.log.debug('init plugins');
     this.setMaintainingMessage('init plugins');
@@ -1134,7 +1170,12 @@ export class Application<StateT = DefaultState, ContextT = DefaultContext> exten
 
     this._cli = this.createCLI();
     this._i18n = createI18n(options);
-    this.syncManager = new SyncManager(this);
+    this.pubSubManager = createPubSubManager(this, options.pubSubManager);
+    this.syncMessageManager = new SyncMessageManager(this, options.syncMessageManager);
+    this.lockManager = new LockManager({
+      defaultAdapter: process.env.LOCK_ADAPTER_DEFAULT,
+      ...options.lockManager,
+    });
     this.context.db = this.db;
 
     /**
@@ -1178,6 +1219,7 @@ export class Application<StateT = DefaultState, ContextT = DefaultContext> exten
       group: 'parseVariables',
       after: 'acl',
     });
+
     this._dataSourceManager.use(dataTemplate, { group: 'dataTemplate', after: 'acl' });
 
     this._locales = new Locale(createAppProxy(this));
@@ -1195,6 +1237,10 @@ export class Application<StateT = DefaultState, ContextT = DefaultContext> exten
     registerCli(this);
 
     this._version = new ApplicationVersion(this);
+
+    for (const callback of Application.staticCommands) {
+      callback(this);
+    }
   }
 
   protected createMainDataSource(options: ApplicationOptions) {
@@ -1216,15 +1262,26 @@ export class Application<StateT = DefaultState, ContextT = DefaultContext> exten
   }
 
   protected createDatabase(options: ApplicationOptions) {
-    const logging = (msg: any) => {
+    const logging = (...args) => {
+      let msg = args[0];
+
       if (typeof msg === 'string') {
         msg = msg.replace(/[\r\n]/gm, '').replace(/\s+/g, ' ');
       }
+
       if (msg.includes('INSERT INTO')) {
         msg = msg.substring(0, 2000) + '...';
       }
-      this._sqlLogger.debug({ message: msg, app: this.name, reqId: this.context.reqId });
+
+      const content: any = { message: msg, app: this.name, reqId: this.context.reqId };
+
+      if (args[1] && typeof args[1] === 'number') {
+        content.executeTime = args[1];
+      }
+
+      this._sqlLogger.debug(content);
     };
+
     const dbOptions = options.database instanceof Database ? options.database.options : options.database;
     const db = new Database({
       ...dbOptions,

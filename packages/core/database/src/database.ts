@@ -142,6 +142,7 @@ export class Database extends EventEmitter implements AsyncEmitter {
   repositories = new Map<string, RepositoryType>();
   operators = new Map();
   collections = new Map<string, Collection>();
+  collectionsSort = new Map<string, number>();
   pendingFields = new Map<string, RelationField[]>();
   modelCollection = new Map<ModelStatic<any>, Collection>();
   modelNameCollectionMap = new Map<string, Collection>();
@@ -234,7 +235,12 @@ export class Database extends EventEmitter implements AsyncEmitter {
       });
     }
 
+    if (options.logging && process.env['DB_SQL_BENCHMARK'] == 'true') {
+      opts.benchmark = true;
+    }
+
     this.options = opts;
+
     this.logger.debug(
       `create database instance: ${safeJsonStringify(
         // remove sensitive information

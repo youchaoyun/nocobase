@@ -13,7 +13,7 @@ import { SortableContext, SortableContextProps, useSortable } from '@dnd-kit/sor
 import { css, cx } from '@emotion/css';
 import { ArrayField } from '@formily/core';
 import { spliceArrayState } from '@formily/core/esm/shared/internals';
-import { RecursionField, Schema, observer, useField, useFieldSchema } from '@formily/react';
+import { RecursionField, Schema, SchemaOptionsContext, observer, useField, useFieldSchema } from '@formily/react';
 import { action } from '@formily/reactive';
 import { uid } from '@formily/shared';
 import { isPortalInBody } from '@nocobase/utils/client';
@@ -30,6 +30,7 @@ import {
   RecordProvider,
   useCollection,
   useCollectionParentRecordData,
+  useDataBlockProps,
   useDataBlockRequest,
   useFlag,
   useSchemaInitializerRender,
@@ -41,7 +42,7 @@ import { isNewRecord } from '../../../data-source/collection-record/isNewRecord'
 import { withDynamicSchemaProps } from '../../../hoc/withDynamicSchemaProps';
 import { useSatisfiedActionValues } from '../../../schema-settings/LinkageRules/useActionValues';
 import { useToken } from '../__builtins__';
-import { SubFormProvider } from '../association-field/hooks';
+import { SubFormProvider, useAssociationFieldContext } from '../association-field/hooks';
 import { ColumnFieldProvider } from './components/ColumnFieldProvider';
 import { extractIndex, isCollectionFieldComponent, isColumnComponent } from './utils';
 
@@ -105,7 +106,7 @@ const useTableColumns = (props: { showDel?: any; isSubTable?: boolean }, paginat
     return css`
       .nb-action-link {
         margin: -${token.paddingContentVerticalLG}px -${token.marginSM}px;
-        padding: ${token.paddingContentVerticalLG}px ${token.margin}px;
+        padding: ${token.paddingContentVerticalLG}px ${token.paddingSM + 4}px;
       }
     `;
   }, [token.paddingContentVerticalLG, token.marginSM]);
@@ -121,13 +122,15 @@ const useTableColumns = (props: { showDel?: any; isSubTable?: boolean }, paginat
           }
         }, []);
         const dataIndex = collectionFields?.length > 0 ? collectionFields[0].name : s.name;
+        const columnHidden = !!s['x-component-props']?.['columnHidden'];
         return {
           title: <RecursionField name={s.name} schema={s} onlyRenderSelf />,
           dataIndex,
           key: s.name,
           sorter: s['x-component-props']?.['sorter'],
-          width: 200,
+          columnHidden,
           ...s['x-component-props'],
+          width: columnHidden && !designable ? 0 : s['x-component-props']?.width || 100,
           render: (v, record) => {
             // 这行代码会导致这里的测试不通过：packages/core/client/src/modules/blocks/data-blocks/table/__e2e__/schemaInitializer.test.ts:189
             // if (collectionFields?.length === 1 && collectionFields[0]['x-read-pretty'] && v == undefined) return null;
@@ -149,14 +152,25 @@ const useTableColumns = (props: { showDel?: any; isSubTable?: boolean }, paginat
             );
           },
           onCell: (record, rowIndex) => {
-            return { record, schema: s, rowIndex, isSubTable: props.isSubTable };
+            return {
+              record,
+              schema: s,
+              rowIndex,
+              isSubTable: props.isSubTable,
+              columnHidden,
+            };
+          },
+          onHeaderCell: () => {
+            return {
+              columnHidden,
+            };
           },
         } as TableColumnProps<any>;
       }),
 
     // 这里不能把 columnsSchema 作为依赖，因为其每次都会变化，这里使用 hasChangedColumns 作为依赖
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [hasChangedColumns, field.value, field.address, collection, parentRecordData, schemaToolbarBigger],
+    [hasChangedColumns, field.value, field.address, collection, parentRecordData, schemaToolbarBigger, designable],
   );
 
   const tableColumns = useMemo(() => {
@@ -186,20 +200,23 @@ const useTableColumns = (props: { showDel?: any; isSubTable?: boolean }, paginat
         render: (v, record, index) => {
           if (props.showDel(record)) {
             return (
-              <CloseOutlined
-                style={{ cursor: 'pointer', color: 'gray' }}
+              <div
                 onClick={() => {
                   return action(() => {
                     const fieldIndex = (current - 1) * pageSize + index;
+                    const deleteCount = field.value[fieldIndex] ? 1 : 2;
                     spliceArrayState(field, {
                       startIndex: fieldIndex,
-                      deleteCount: 1,
+                      deleteCount: deleteCount,
                     });
-                    field.value.splice(fieldIndex, 1);
+                    field.value.splice(fieldIndex, deleteCount);
+                    field.setInitialValue(field.value);
                     return field.onInput(field.value);
                   });
                 }}
-              />
+              >
+                <CloseOutlined style={{ cursor: 'pointer', color: 'gray' }} />
+              </div>
             );
           }
           return;
@@ -305,11 +322,18 @@ const usePaginationProps = (pagination1, pagination2) => {
     [JSON.stringify({ ...pagination1, ...pagination2 })],
   );
   const { total: totalCount, current, pageSize } = pagination || {};
+  const blockProps = useDataBlockProps();
+  const original = useAssociationFieldContext();
+  const { components } = useContext(SchemaOptionsContext);
+  const C = original?.fieldSchema?.['x-component-props']?.summary?.Component || blockProps?.summary?.Component;
   const showTotal = useCallback(
     (total) => {
+      if (components[C]) {
+        return React.createElement(components[C]);
+      }
       return t('Total {{count}} items', { count: total });
     },
-    [t, totalCount],
+    [components, C, t],
   );
   const result = useMemo(() => {
     if (totalCount) {
@@ -438,7 +462,25 @@ const HeaderWrapperComponent = (props) => {
   );
 };
 
-const HeaderCellComponent = (props) => {
+// Style when Hidden is enabled in table column configuration
+const columnHiddenStyle = {
+  borderRight: 'none',
+  paddingLeft: 0,
+  paddingRight: 0,
+};
+
+// Style when Hidden is enabled in configuration mode
+const columnOpacityStyle = {
+  opacity: 0.3,
+};
+
+const HeaderCellComponent = ({ columnHidden, ...props }) => {
+  const { designable } = useDesignable();
+
+  if (columnHidden) {
+    return <th style={designable ? columnOpacityStyle : columnHiddenStyle}>{designable ? props.children : null}</th>;
+  }
+
   return <th {...props} className={cls(props.className, headerClass)} />;
 };
 
@@ -451,7 +493,7 @@ const BodyRowComponent = (props: {
   return <SortableRow {...props} />;
 };
 
-const BodyCellComponent = (props) => {
+const InternalBodyCellComponent = (props) => {
   const { token } = useToken();
   const inView = useContext(InViewContext);
   const isIndex = props.className?.includes('selection-column');
@@ -470,6 +512,21 @@ const BodyCellComponent = (props) => {
       {isSubTable || inView || isIndex ? props.children : <div style={skeletonStyle} />}
     </td>
   );
+};
+
+const displayNone = { display: 'none' };
+const BodyCellComponent = ({ columnHidden, ...props }) => {
+  const { designable } = useDesignable();
+
+  if (columnHidden) {
+    return (
+      <td style={designable ? columnOpacityStyle : columnHiddenStyle}>
+        {designable ? props.children : <span style={displayNone}>{props.children}</span>}
+      </td>
+    );
+  }
+
+  return <InternalBodyCellComponent {...props} />;
 };
 
 interface TableProps {
@@ -531,7 +588,6 @@ const InternalNocoBaseTable = React.memo(
       field,
       ...others
     } = props;
-
     return (
       <div
         className={cx(
@@ -551,6 +607,12 @@ const InternalNocoBaseTable = React.memo(
                   }
                   .ant-table-body {
                     min-height: ${tableHeight}px;
+                  }
+                  .ant-table-small .ant-table-cell {
+                    padding: 8px 16px;
+                  }
+                  .ant-table-middle .ant-table-cell {
+                    padding: 12px 16px;
                   }
                 }
               }
@@ -618,6 +680,7 @@ export const Table: any = withDynamicSchemaProps(
     } = { ...others1, ...others2 } as any;
     const field = useArrayField(others);
     const schema = useFieldSchema();
+    const { size = 'middle' } = schema?.['x-component-props'] || {};
     const collection = useCollection();
     const isTableSelector = schema?.parent?.['x-decorator'] === 'TableSelectorProvider';
     const ctx = isTableSelector ? useTableSelectorContext() : useTableBlockContext();
@@ -890,7 +953,6 @@ export const Table: any = withDynamicSchemaProps(
         expandedRowKeys: expandedKeys,
       };
     }, [expandedKeys, onExpandValue]);
-
     return (
       // If spinning is set to undefined, it will cause the subtable to always display loading, so we need to convert it here
       <Spin spinning={!!loading}>
@@ -911,6 +973,7 @@ export const Table: any = withDynamicSchemaProps(
           columns={columns}
           expandable={expandable}
           field={field}
+          size={size}
         />
       </Spin>
     );
