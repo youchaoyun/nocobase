@@ -28,7 +28,6 @@ export class PluginAuthServer extends Plugin {
   }
 
   async load() {
-    createAccessCtrlConfigRecord(this.db);
     this.cache = await this.app.cacheManager.createCache({
       name: 'auth',
       prefix: 'auth',
@@ -201,6 +200,10 @@ export class PluginAuthServer extends Plugin {
       },
       'auth:signOut',
     ]);
+    this.app.acl.registerSnippet({
+      name: `pm.security-settings.access`,
+      actions: ['authenticators:*'],
+    });
   }
 
   async install(options?: InstallOptions) {
