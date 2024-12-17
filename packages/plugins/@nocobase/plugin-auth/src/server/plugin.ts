@@ -8,7 +8,7 @@
  */
 
 import { Cache } from '@nocobase/cache';
-import { Model } from '@nocobase/database';
+import Database, { Model } from '@nocobase/database';
 import { InstallOptions, Plugin } from '@nocobase/server';
 import { namespace, presetAuthType, presetAuthenticator } from '../preset';
 import authActions from './actions/auth';
@@ -18,7 +18,7 @@ import { AuthModel } from './model/authenticator';
 import { Storer } from './storer';
 import { TokenBlacklistService } from './token-blacklist';
 import { tval } from '@nocobase/utils';
-
+import { secAccessCtrlConfigCollName } from '../constants';
 export class PluginAuthServer extends Plugin {
   cache: Cache;
 
