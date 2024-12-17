@@ -9,6 +9,7 @@
 
 import Database, { defineCollection } from '@nocobase/database';
 import { secAccessCtrlConfigCollName, secAccessCtrlConfigKey } from '../../constants';
+import { SecurityAccessConfig } from '../../types';
 export default defineCollection({
   name: secAccessCtrlConfigCollName,
   autoGenId: false,
@@ -33,16 +34,23 @@ export default defineCollection({
   ],
 });
 
-const createAccessCtrlConfigRecord = async (db: Database) => {
+export const createAccessCtrlConfigRecord = async (db: Database) => {
   const repository = db.getRepository(secAccessCtrlConfigCollName);
   const exist = await repository.findOne({ filterByTk: secAccessCtrlConfigKey });
   if (exist) {
     return;
   }
-
+  const config: SecurityAccessConfig = {
+    tokenExpirationTime: '1h',
+    maxTokenLifetime: '7d',
+    renewalTokenEnabled: true,
+    maxInactiveInterval: '1h',
+    opTimeoutControlEnabled: true,
+  };
   await repository.create({
     values: {
-      config: {},
+      key: secAccessCtrlConfigKey,
+      config,
     },
   });
 };

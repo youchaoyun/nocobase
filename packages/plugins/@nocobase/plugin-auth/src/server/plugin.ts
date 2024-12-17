@@ -18,7 +18,7 @@ import { AuthModel } from './model/authenticator';
 import { Storer } from './storer';
 import { TokenBlacklistService } from './token-blacklist';
 import { tval } from '@nocobase/utils';
-import { secAccessCtrlConfigCollName } from '../constants';
+import { createAccessCtrlConfigRecord } from './collections/access-control-config';
 export class PluginAuthServer extends Plugin {
   cache: Cache;
 
@@ -222,6 +222,7 @@ export class PluginAuthServer extends Plugin {
         },
       },
     });
+    createAccessCtrlConfigRecord(this.db);
   }
   async remove() {}
 }
