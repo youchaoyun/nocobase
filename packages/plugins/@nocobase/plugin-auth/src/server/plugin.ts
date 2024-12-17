@@ -28,6 +28,7 @@ export class PluginAuthServer extends Plugin {
   }
 
   async load() {
+    createAccessCtrlConfigRecord(this.db);
     this.cache = await this.app.cacheManager.createCache({
       name: 'auth',
       prefix: 'auth',
