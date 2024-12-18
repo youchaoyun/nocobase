@@ -11,7 +11,7 @@ import type { Application } from '../application';
 const pluginName = 'security-settings';
 export const addSecuritySettingsPlugin = (app: Application) => {
   app.pluginSettingsManager.add(pluginName, {
-    icon: 'SettingOutlined',
+    icon: 'SafetyOutlined',
     title: '{{t("Security settings")}}',
     aclSnippet: `pm.${pluginName}.${pluginName}`,
   });

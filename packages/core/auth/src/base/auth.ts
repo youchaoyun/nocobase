@@ -11,6 +11,7 @@ import { Collection, Model } from '@nocobase/database';
 import { Auth, AuthConfig } from '../auth';
 import { JwtService } from './jwt-service';
 import { Cache } from '@nocobase/cache';
+import { secAccessCtrlConfigCacheKey } from 'packages/plugins/@nocobase/plugin-auth/src/constants';
 
 /**
  * BaseAuth
@@ -108,9 +109,11 @@ export class BaseAuth extends Auth {
     if (!user) {
       this.ctx.throw(401, 'Unauthorized');
     }
+    // const config = await this.ctx.cache.get<SecurityAccessConfig>(secAccessCtrlConfigCacheKey);
     const token = this.jwt.sign({
       userId: user.id,
       temp: true,
+      // expiresIn: config.tokenExpirationTime,
     });
     return {
       user,

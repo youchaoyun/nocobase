@@ -8,4 +8,5 @@
  */
 
 export const secAccessCtrlConfigKey = 'access-control-config';
-export const secAccessCtrlConfigCollName = 'securityAccessControlConifg';
+export const secAccessCtrlConfigCacheKey = 'auth:' + secAccessCtrlConfigKey;
+export const secAccessCtrlConfigCollName = 'securityAccessControlConfig';

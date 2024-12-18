@@ -8,8 +8,10 @@
  */
 
 import Database, { defineCollection } from '@nocobase/database';
-import { secAccessCtrlConfigCollName, secAccessCtrlConfigKey } from '../../constants';
+import { Cache } from '@nocobase/cache';
+import { secAccessCtrlConfigCollName, secAccessCtrlConfigKey, secAccessCtrlConfigCacheKey } from '../../constants';
 import { SecurityAccessConfig } from '../../types';
+import Application from '@nocobase/server';
 export default defineCollection({
   name: secAccessCtrlConfigCollName,
   autoGenId: false,
@@ -52,5 +54,21 @@ export const createAccessCtrlConfigRecord = async (db: Database) => {
       key: secAccessCtrlConfigKey,
       config,
     },
+  });
+};
+
+export const getAccessCtrlConfig = async (db: Database) => {
+  const repository = db.getRepository(secAccessCtrlConfigCollName);
+  const res = await repository.findOne({ filterByTk: secAccessCtrlConfigKey });
+  return res?.data?.data?.config;
+};
+
+export const saveAccessCtrlConfigToCache = async (db: Database, cache: Cache) => {
+  const config = await getAccessCtrlConfig(db);
+  if (config) {
+    cache.set(secAccessCtrlConfigCacheKey, config);
+  }
+  db.on(`${secAccessCtrlConfigCollName}.afterUpdate`, async (model) => {
+    cache.set(secAccessCtrlConfigCacheKey, model.config);
   });
 };

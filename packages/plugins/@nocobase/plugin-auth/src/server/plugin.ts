@@ -18,7 +18,8 @@ import { AuthModel } from './model/authenticator';
 import { Storer } from './storer';
 import { TokenBlacklistService } from './token-blacklist';
 import { tval } from '@nocobase/utils';
-import { createAccessCtrlConfigRecord } from './collections/access-control-config';
+import { createAccessCtrlConfigRecord, saveAccessCtrlConfigToCache } from './collections/access-control-config';
+import { secAccessCtrlConfigCollName } from '../constants';
 export class PluginAuthServer extends Plugin {
   cache: Cache;
 
@@ -202,8 +203,9 @@ export class PluginAuthServer extends Plugin {
     ]);
     this.app.acl.registerSnippet({
       name: `pm.security-settings.access`,
-      actions: ['authenticators:*'],
+      actions: [`${secAccessCtrlConfigCollName}:*`],
     });
+    saveAccessCtrlConfigToCache(this.app.db, this.app.cache);
   }
 
   async install(options?: InstallOptions) {

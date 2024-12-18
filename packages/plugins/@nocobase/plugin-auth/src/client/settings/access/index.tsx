@@ -19,7 +19,6 @@ type Properties = {
 };
 const schema: ISchema & { properties: Properties } = {
   name: uid(),
-  'x-decorator': 'Card',
   'x-component': 'FormV2',
   'x-use-component-props': hooksNameMap.useEditForm,
   type: 'object',
