@@ -12,6 +12,7 @@ import { Registry } from '@nocobase/utils';
 import { Auth, AuthExtend } from './auth';
 import { JwtOptions, JwtService } from './base/jwt-service';
 import { ITokenBlacklistService } from './base/token-blacklist-service';
+import { ITokenControlService } from './base/token-manage-service';
 
 export interface Authenticator {
   authType: string;

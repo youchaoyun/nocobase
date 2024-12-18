@@ -11,7 +11,6 @@ import { Collection, Model } from '@nocobase/database';
 import { Auth, AuthConfig } from '../auth';
 import { JwtService } from './jwt-service';
 import { Cache } from '@nocobase/cache';
-import { secAccessCtrlConfigCacheKey } from 'packages/plugins/@nocobase/plugin-auth/src/constants';
 
 /**
  * BaseAuth
@@ -70,8 +69,9 @@ export class BaseAuth extends Auth {
       return null;
     }
     try {
-      const { userId, roleName, iat, temp } = await this.jwt.decode(token);
-
+      const { userId, roleName, iat, temp, jti } = await this.jwt.decode(token);
+      if (jti) this.ctx.tokenId = jti;
+      this.jwt.controller.setTokenActiveInfo(jti, { lastActiveTime: Date.now() });
       if (roleName) {
         this.ctx.headers['x-role'] = roleName;
       }

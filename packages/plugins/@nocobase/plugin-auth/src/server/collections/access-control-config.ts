@@ -59,16 +59,21 @@ export const createAccessCtrlConfigRecord = async (db: Database) => {
 
 export const getAccessCtrlConfig = async (db: Database) => {
   const repository = db.getRepository(secAccessCtrlConfigCollName);
+
   const res = await repository.findOne({ filterByTk: secAccessCtrlConfigKey });
   return res?.data?.data?.config;
 };
 
-export const saveAccessCtrlConfigToCache = async (db: Database, cache: Cache) => {
-  const config = await getAccessCtrlConfig(db);
-  if (config) {
-    cache.set(secAccessCtrlConfigCacheKey, config);
+export const saveAccessCtrlConfigToCache = async (app: Application, db: Database, cache: Cache) => {
+  try {
+    const config = await getAccessCtrlConfig(db);
+    if (config) {
+      cache.set(secAccessCtrlConfigCacheKey, config);
+    }
+    db.on(`${secAccessCtrlConfigCollName}.afterUpdate`, async (model) => {
+      cache.set(secAccessCtrlConfigCacheKey, model.config);
+    });
+  } catch (error) {
+    app.logger.error('saveAccessCtrlConfigToCache error', error);
   }
-  db.on(`${secAccessCtrlConfigCollName}.afterUpdate`, async (model) => {
-    cache.set(secAccessCtrlConfigCacheKey, model.config);
-  });
 };

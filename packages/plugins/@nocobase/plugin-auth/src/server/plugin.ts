@@ -205,7 +205,7 @@ export class PluginAuthServer extends Plugin {
       name: `pm.security-settings.access`,
       actions: [`${secAccessCtrlConfigCollName}:*`],
     });
-    saveAccessCtrlConfigToCache(this.app.db, this.app.cache);
+    saveAccessCtrlConfigToCache(this.app, this.db, this.app.cache);
   }
 
   async install(options?: InstallOptions) {
