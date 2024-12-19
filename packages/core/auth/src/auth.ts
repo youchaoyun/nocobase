@@ -23,12 +23,8 @@ export type AuthExtend<T extends Auth> = new (config: AuthConfig) => T;
 
 interface IAuth {
   user: Model;
-  status: {
-    valid: boolean;
-    exp;
-  };
   // Check the authenticaiton status and return the current user.
-  check(): Promise<{ user: Model }>;
+  check(): Promise<Model>;
   signIn(): Promise<any>;
   signUp(): Promise<any>;
   signOut(): Promise<any>;
