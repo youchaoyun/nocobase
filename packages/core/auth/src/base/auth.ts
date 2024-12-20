@@ -66,7 +66,7 @@ export class BaseAuth extends Auth {
   async check() {
     const token = this.ctx.getBearerToken();
     if (!token) {
-      return null;
+      this.ctx.throw(401, 'Unauthorized');
     }
     try {
       const { userId, roleName, iat, temp, jti } = await this.jwt.decode(token);

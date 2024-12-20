@@ -30,4 +30,6 @@ export interface ITokenControlService {
   getConfig(): TokenControlConfig;
   setConfig(config: TokenControlConfig): void;
   isTokenAccessAllowed(tokenId: string): boolean;
+  renewAccessId(tokenId: string): string;
+  createAccessId(): string;
 }

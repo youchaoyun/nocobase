@@ -7,10 +7,11 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import jwt, { SignOptions } from 'jsonwebtoken';
+import jwt, { JwtPayload, SignOptions } from 'jsonwebtoken';
 import { ITokenBlacklistService } from './token-blacklist-service';
-import { ITokenControlService } from './token-manage-service';
+import { ITokenControlService } from './access-control-service';
 import { randomUUID } from 'crypto';
+import { error } from 'console';
 export interface JwtOptions {
   secret: string;
   expiresIn?: string;
@@ -45,8 +46,7 @@ export class JwtService {
   /* istanbul ignore next -- @preserve */
   sign(payload: SignPayload, options?: SignOptions) {
     const expiresIn = this.controller.config.tokenExpirationTime || this.expiresIn();
-    const jti = randomUUID();
-    const opt = { ...options, expiresIn, jti };
+    const opt = { ...options, expiresIn };
     if (opt.expiresIn === 'never') {
       opt.expiresIn = '1000y';
     }
@@ -56,7 +56,7 @@ export class JwtService {
   /* istanbul ignore next -- @preserve */
   decode(token: string): Promise<any> {
     return new Promise((resolve, reject) => {
-      jwt.verify(token, this.secret(), (err: any, decoded: any) => {
+      jwt.verify(token, this.secret(), (err, decoded) => {
         if (err) {
           return reject(err);
         }
@@ -64,6 +64,20 @@ export class JwtService {
         resolve(decoded);
       });
     });
+  }
+
+  verify(token: string): Promise<{ status: 'valid' | 'expired'; decoded: JwtPayload } | { status: 'other' }> {
+    return new Promise((resolve, reject) => {
+      jwt.verify(token, this.secret(), (err, decoded) => {
+        if (err) {
+          if (error.name === 'to') return reject(err);
+        }
+      });
+    });
+  }
+
+  getPayload(token: string) {
+    return jwt.decode(token);
   }
 
   /**

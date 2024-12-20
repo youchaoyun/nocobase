@@ -12,8 +12,9 @@ import { Registry } from '@nocobase/utils';
 import { Auth, AuthExtend } from './auth';
 import { JwtOptions, JwtService } from './base/jwt-service';
 import { ITokenBlacklistService } from './base/token-blacklist-service';
-import { ITokenControlService } from './base/token-manage-service';
+import { ITokenControlService } from './base/access-control-service';
 import { DataSource } from '@nocobase/data-source-manager';
+import { JwtPayload } from 'jsonwebtoken';
 
 export interface Authenticator {
   authType: string;
@@ -42,6 +43,8 @@ export class AuthManager {
    * @internal
    */
   jwt: JwtService;
+  accessController: ITokenControlService;
+
   protected options: AuthManagerOptions;
   protected authTypes: Registry<AuthConfig> = new Registry();
   // authenticators collection manager.
@@ -155,6 +158,10 @@ export class AuthManager {
         return next();
       }
       const token = ctx.getBearerToken();
+      if (!token) {
+        ctx.throw(401, 'Unauthorized');
+        return;
+      }
       let tokenStatus: 'valid' | 'expired' | 'other_error' | null = null;
       try {
         await ctx.app.authManager.jwt.decode(token);
@@ -166,11 +173,19 @@ export class AuthManager {
 
       if (tokenStatus === 'valid') return next();
       else if (tokenStatus === 'expired') {
-        /*
-        token如果过期，
-        */
+        try {
+          const { jti } = self.jwt.getPayload(token) as JwtPayload;
+          if (jti) {
+            const newAccessId = self.accessController.renewAccessId(jti);
+          } else throw new Error('jti not found');
+        } catch (error) {
+          ctx.throw(401, 'Unauthorized');
+          return;
+        }
+      } else {
+        ctx.throw(401, 'Unauthorized');
+        return;
       }
-
       await next();
     };
   }
