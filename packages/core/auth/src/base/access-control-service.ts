@@ -11,7 +11,7 @@ export interface IAccessControlConfig {
   tokenExpirationTime: string;
   maxTokenLifetime: string;
   renewalTokenEnabled: boolean;
-  maxInactiveInterval: string;
+  maxInactiveInterval: number;
   opTimeoutControlEnabled: boolean;
 }
 
@@ -25,7 +25,13 @@ export interface IAccessControlService<AccessInfo = any> {
   setConfig(config: IAccessControlConfig): void;
   refreshAccess(
     accessId: string,
-  ): { status: 'success'; id: string } | { status: 'failed'; type: 'not_found' | 'resigned' };
+  ): Promise<
+    { status: 'success'; id: string } | { status: 'failed'; reason: 'access_id_not_exist' | 'access_id_resigned' }
+  >;
   addAccess(): void;
-  canAccess(accessId: string): boolean;
+  canAccess(
+    accessId: string,
+  ):
+    | { allow: true }
+    | { allow: false; reason: 'access_id_not_exist' | 'access_id_resigned' | 'action_timeout' | 'ip_baned' };
 }

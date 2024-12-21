@@ -9,12 +9,15 @@
 
 import { IAccessControlService, IAccessControlConfig } from '@nocobase/auth';
 import { randomUUID } from 'crypto';
+import { Mutex } from 'async-mutex';
+const mutexMap = new Map<string, Mutex>();
 type AccessInfo = {
   id: string;
   lastAccessTime: EpochTimeStamp;
   resigned: boolean;
 };
-export class AccessController implements IAccessControlService<AccessInfo> {
+type AccessService = IAccessControlService<AccessInfo>;
+export class AccessController implements AccessService {
   public config: IAccessControlConfig;
   private accessMap: Map<string, AccessInfo> = new Map();
   getConfig() {
@@ -36,21 +39,40 @@ export class AccessController implements IAccessControlService<AccessInfo> {
     if (!accessInfo) throw new Error('Access not found');
     this.accessMap.set(id, { ...accessInfo, ...value });
   }
-  refreshAccess(id: string): { status: 'success'; id: string } | { status: 'failed'; type: 'not_found' | 'resigned' } {
-    const access = this.accessMap.get(id);
-    if (!access) return { status: 'failed', type: 'not_found' };
-    if (access.resigned) return { status: 'failed', type: 'resigned' };
-    const newId = randomUUID();
-    this.updateAccess(id, { resigned: true });
-    const accessInfo = {
-      id: newId,
-      lastAccessTime: Date.now(),
-      resigned: false,
+
+  refreshAccess: AccessService['refreshAccess'] = async (id) => {
+    const checkAccess = () => {
+      const access = this.accessMap.get(id);
+      if (!access) return { status: 'failed', reason: 'access_id_not_exist' };
+      if (access.resigned) return { status: 'failed', reason: 'access_id_resigned' };
     };
-    this.accessMap.set(newId, accessInfo);
-    return { status: 'success', id: newId };
-  }
-  canAccess(id: string): boolean {
-    return true;
-  }
+    const mutex = mutexMap.get(id) ?? mutexMap.set(id, new Mutex()).get(id);
+    if (mutex && mutex.isLocked()) {
+      await mutex.waitForUnlock();
+      checkAccess();
+    }
+    try {
+      mutex.acquire();
+      const newId = randomUUID();
+      this.updateAccess(id, { resigned: true });
+      const accessInfo = {
+        id: newId,
+        lastAccessTime: Date.now(),
+        resigned: false,
+      };
+      this.accessMap.set(newId, accessInfo);
+      return { status: 'success', id: newId };
+    } finally {
+      mutex.release();
+    }
+  };
+  canAccess: AccessService['canAccess'] = (id) => {
+    const accessInfo = this.accessMap.get(id);
+    if (!accessInfo) return { allow: false, reason: 'access_id_not_exist' };
+    const currTS = Date.now();
+    if (currTS - accessInfo.lastAccessTime > this.config.maxInactiveInterval) {
+      return { allow: false, reason: 'action_timeout' };
+    }
+    return { allow: true };
+  };
 }

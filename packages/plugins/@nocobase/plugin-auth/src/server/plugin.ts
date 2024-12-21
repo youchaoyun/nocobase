@@ -17,8 +17,13 @@ import { BasicAuth } from './basic-auth';
 import { AuthModel } from './model/authenticator';
 import { Storer } from './storer';
 import { TokenBlacklistService } from './token-blacklist';
+import { AccessController } from './access-controller';
 import { tval } from '@nocobase/utils';
-import { createAccessCtrlConfigRecord, saveAccessCtrlConfigToCache } from './collections/access-control-config';
+import {
+  createAccessCtrlConfigRecord,
+  getAccessCtrlConfig,
+  saveAccessCtrlConfigToCache,
+} from './collections/access-control-config';
 import { secAccessCtrlConfigCollName } from '../constants';
 export class PluginAuthServer extends Plugin {
   cache: Cache;
@@ -45,6 +50,13 @@ export class PluginAuthServer extends Plugin {
     if (!this.app.authManager.jwt.blacklist) {
       // If blacklist service is not set, should configure default blacklist service
       this.app.authManager.setTokenBlacklistService(new TokenBlacklistService(this));
+    }
+
+    if (!this.app.authManager.accessController) {
+      const accessController = new AccessController();
+      const config = await getAccessCtrlConfig(this.db);
+      if (config) accessController.setConfig(config);
+      this.app.authManager.setAccessControlService(accessController);
     }
 
     this.app.authManager.registerTypes(presetAuthType, {

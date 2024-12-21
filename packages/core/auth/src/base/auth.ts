@@ -99,9 +99,10 @@ export class BaseAuth extends Auth {
         return;
       }
       if (status === 'expired') {
-        const result = this.accessController.refreshAccess(jti);
+        const result = await this.accessController.refreshAccess(jti);
         if (result.status === 'failed') {
-          if (result.type === 'resigned') this.ctx.headers['x-failed-reason'] = 'resigned';
+          if (result.reason === 'access_id_resigned')
+            this.ctx.headers['x-authorized-failed-reason'] = 'access_id_resigned';
           this.ctx.throw(401, 'Unauthorized');
         }
         const newToken = this.jwt.sign({ userId, temp, jti: result.id, roleName });
