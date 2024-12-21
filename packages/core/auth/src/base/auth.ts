@@ -10,6 +10,7 @@
 import { Collection, Model } from '@nocobase/database';
 import { Auth, AuthConfig } from '../auth';
 import { JwtService } from './jwt-service';
+import { IAccessControlService } from './access-control-service';
 import { Cache } from '@nocobase/cache';
 
 /**
@@ -38,6 +39,10 @@ export class BaseAuth extends Auth {
    */
   get jwt(): JwtService {
     return this.ctx.app.authManager.jwt;
+  }
+
+  get accessController(): IAccessControlService {
+    return this.ctx.app.authManager.accessController;
   }
 
   set user(user: Model) {
@@ -69,13 +74,14 @@ export class BaseAuth extends Auth {
       this.ctx.throw(401, 'Unauthorized');
     }
     try {
-      const { userId, roleName, iat, temp, jti } = await this.jwt.decode(token);
-      if (jti) this.ctx.tokenId = jti;
-      this.jwt.controller.setTokenActiveInfo(jti, { lastActiveTime: Date.now() });
+      const { status, payload } = await this.jwt.verify(token);
+      const { userId, roleName, iat, temp, jti } = payload;
       if (roleName) {
         this.ctx.headers['x-role'] = roleName;
       }
-
+      if (!this.accessController.canAccess(jti)) {
+        this.ctx.throw(401, 'Unauthorized');
+      }
       const cache = this.ctx.cache as Cache;
       const user = await cache.wrap(this.getCacheKey(userId), () =>
         this.userRepository.findOne({
@@ -86,12 +92,25 @@ export class BaseAuth extends Auth {
         }),
       );
       if (temp && user.passwordChangeTz && iat * 1000 < user.passwordChangeTz) {
-        throw new Error('Token is invalid');
+        this.ctx.throw(401, 'Unauthorized');
+      }
+      if (status === 'other') {
+        this.ctx.throw(401, 'Unauthorized');
+        return;
+      }
+      if (status === 'expired') {
+        const result = this.accessController.refreshAccess(jti);
+        if (result.status === 'failed') {
+          if (result.type === 'resigned') this.ctx.headers['x-failed-reason'] = 'resigned';
+          this.ctx.throw(401, 'Unauthorized');
+        }
+        const newToken = this.jwt.sign({ userId, temp, jti: result.id, roleName });
+        this.ctx.headers['x-new-token'] = newToken;
       }
       return user;
     } catch (err) {
       this.ctx.logger.error(err, { method: 'check' });
-      return null;
+      this.ctx.throw(401, 'Unauthorized');
     }
   }
 

@@ -7,7 +7,7 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-interface TokenControlConfig {
+export interface IAccessControlConfig {
   tokenExpirationTime: string;
   maxTokenLifetime: string;
   renewalTokenEnabled: boolean;
@@ -15,21 +15,17 @@ interface TokenControlConfig {
   opTimeoutControlEnabled: boolean;
 }
 
-interface TokenActiveInfo {
-  lastActiveTime: EpochTimeStamp;
-}
-
 interface TokenStatus {
   valid: boolean;
   invalidType: 'expired' | 'other' | null;
 }
-export interface ITokenControlService {
-  config: TokenControlConfig;
-  getTokenActiveInfo(tokenId: string): TokenActiveInfo;
-  setTokenActiveInfo(tokenId: string, info: Partial<TokenActiveInfo>): void;
-  getConfig(): TokenControlConfig;
-  setConfig(config: TokenControlConfig): void;
-  isTokenAccessAllowed(tokenId: string): boolean;
-  renewAccessId(tokenId: string): string;
-  createAccessId(): string;
+export interface IAccessControlService<AccessInfo = any> {
+  config: IAccessControlConfig;
+  getConfig(): IAccessControlConfig;
+  setConfig(config: IAccessControlConfig): void;
+  refreshAccess(
+    accessId: string,
+  ): { status: 'success'; id: string } | { status: 'failed'; type: 'not_found' | 'resigned' };
+  addAccess(): void;
+  canAccess(accessId: string): boolean;
 }
