@@ -50,13 +50,13 @@ export class AllowManager {
   getAllowedConditions(
     resourceName: string,
     actionName: string,
-  ): Array<{ condition: ConditionFunc | true; rawCondition: ConditionFunc | string }> {
-    const fetchActionSteps: string[] = ['*', resourceName];
+  ): Array<{ condition: ConditionFunc | true; rawCondition: ConditionFunc | string | boolean }> {
+    const fetchResourceSteps: string[] = ['*', resourceName];
 
     const results = [];
 
-    for (const fetchActionStep of fetchActionSteps) {
-      const resource = this.skipActions.get(fetchActionStep);
+    for (const fetchResourceStep of fetchResourceSteps) {
+      const resource = this.skipActions.get(fetchResourceStep);
       if (resource) {
         for (const fetchActionStep of ['*', actionName]) {
           const condition = resource.get(fetchActionStep);
@@ -78,7 +78,7 @@ export class AllowManager {
   }
   isPublic(resourceName: string, actionName: string) {
     const conditions = this.getAllowedConditions(resourceName, actionName);
-    if (conditions.some((item) => item.rawCondition === 'public')) return true;
+    if (conditions.some((item) => item.rawCondition === true || item.rawCondition === 'public')) return true;
     else return false;
   }
   async isAllowed(resourceName: string, actionName: string, ctx: any) {

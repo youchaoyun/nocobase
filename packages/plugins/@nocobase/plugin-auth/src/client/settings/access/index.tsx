@@ -12,6 +12,7 @@ import { ISchema, SchemaComponent, ExtendCollectionsProvider } from '@nocobase/c
 import { Card } from 'antd';
 import { uid } from '@formily/shared';
 import { hooksNameMap, hooksMap } from './hooks';
+import { componentsMap, componentsNameMap } from './components';
 import { SecurityAccessConfig } from '../../../types';
 
 type Properties = {
@@ -27,7 +28,7 @@ const schema: ISchema & { properties: Properties } = {
       type: 'string',
       title: "{{t('Token expiration time')}}",
       'x-decorator': 'FormItem',
-      'x-component': 'Input',
+      'x-component': componentsNameMap.InputTime,
       required: true,
     },
     maxTokenLifetime: {
@@ -75,7 +76,7 @@ const schema: ISchema & { properties: Properties } = {
 export const AccessSettings = () => {
   return (
     <Card bordered={false}>
-      <SchemaComponent schema={schema} scope={hooksMap}></SchemaComponent>
+      <SchemaComponent schema={schema} scope={hooksMap} components={componentsMap}></SchemaComponent>
     </Card>
   );
 };

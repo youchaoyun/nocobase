@@ -7,18 +7,41 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import React from 'react';
-import { InputNumber, Select, Space } from 'antd';
+import React, { useEffect } from 'react';
+import { InputNumber, Select } from 'antd';
+import { connect, mapProps } from '@formily/react';
 const { Option } = Select;
-export const TimeUnits = () => {
-  <Select defaultValue="minutes" style={{ width: 120 }}>
-    <Option value="minutes">Minutes</Option>
-    <Option value="hours">Hours</Option>
-    <Option value="days">Days</Option>
-  </Select>;
+
+const InputTime = connect(
+  (props) => {
+    const { value, onChange, ...restProps } = props;
+    const regex = /^(\d+)([a-zA-Z]+)$/;
+    const match = value ? value.match(regex) : null;
+    useEffect(() => {
+      if (!match) onChange('1m');
+    }, [match, onChange]);
+    const [time, unit] = match ? [parseInt(match[1]), match[2]] : [0, 'm'];
+    const TimeUnits = (
+      <Select value={unit} onChange={(unit) => onChange(`${time}${unit}`)} style={{ width: 120 }}>
+        <Option value="m">Minutes</Option>
+        <Option value="h">Hours</Option>
+        <Option value="d">Days</Option>
+      </Select>
+    );
+
+    return (
+      <InputNumber value={time} addonAfter={TimeUnits} onChange={(time) => onChange(`${time}${unit}`)} {...restProps} />
+    );
+  },
+  mapProps({
+    onInput: 'onChange',
+  }),
+);
+
+export const componentsNameMap = {
+  InputTime: 'InputTime',
 };
 
-const InputInterval = (props) => {
-  const { value, onChange } = props;
-  return <InputNumber addonAfter={TimeUnits} />;
+export const componentsMap = {
+  [componentsNameMap.InputTime]: InputTime,
 };
