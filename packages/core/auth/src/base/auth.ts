@@ -71,7 +71,7 @@ export class BaseAuth extends Auth {
   async check() {
     const token = this.ctx.getBearerToken();
     if (!token) {
-      this.ctx.throw(401, 'Unauthorized');
+      throw new Error('Empty token');
     }
     try {
       const { status, payload } = await this.jwt.verify(token);
@@ -80,7 +80,7 @@ export class BaseAuth extends Auth {
         this.ctx.headers['x-role'] = roleName;
       }
       if (!this.accessController.canAccess(jti)) {
-        this.ctx.throw(401, 'Unauthorized');
+        throw new Error('Empty jti');
       }
       const cache = this.ctx.cache as Cache;
       const user = await cache.wrap(this.getCacheKey(userId), () =>
@@ -92,10 +92,10 @@ export class BaseAuth extends Auth {
         }),
       );
       if (temp && user.passwordChangeTz && iat * 1000 < user.passwordChangeTz) {
-        this.ctx.throw(401, 'Unauthorized');
+        throw new Error('Password expired');
       }
       if (status === 'other') {
-        this.ctx.throw(401, 'Unauthorized');
+        throw new Error('Unauthorized');
         return;
       }
       if (status === 'expired') {
@@ -103,7 +103,7 @@ export class BaseAuth extends Auth {
         if (result.status === 'failed') {
           if (result.reason === 'access_id_resigned')
             this.ctx.headers['x-authorized-failed-reason'] = 'access_id_resigned';
-          this.ctx.throw(401, 'Unauthorized');
+          throw new Error('Unauthorized');
         }
         const newToken = this.jwt.sign({ userId, temp, jti: result.id, roleName });
         this.ctx.headers['x-new-token'] = newToken;
@@ -111,7 +111,7 @@ export class BaseAuth extends Auth {
       return user;
     } catch (err) {
       this.ctx.logger.error(err, { method: 'check' });
-      this.ctx.throw(401, 'Unauthorized');
+      throw new Error('Unauthorized');
     }
   }
 

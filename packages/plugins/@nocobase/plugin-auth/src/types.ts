@@ -10,7 +10,7 @@
 export type SecurityAccessConfig = {
   tokenExpirationTime: string;
   maxTokenLifetime: string;
-  renewalTokenEnabled: boolean;
+  // renewalTokenEnabled: boolean;
   maxInactiveInterval: string;
   opTimeoutControlEnabled: boolean;
 };

@@ -18,7 +18,9 @@ import {
   MemoryRouterProps,
   RouteObject,
   useRoutes,
+  useLocation,
 } from 'react-router-dom';
+import createBrowerHistory from 'history';
 import { Application } from './Application';
 import { CustomRouterContextProvider } from './CustomRouterContextProvider';
 import { BlankComponent, RouterContextCleaner } from './components';

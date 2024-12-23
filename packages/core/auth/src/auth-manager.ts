@@ -13,8 +13,6 @@ import { Auth, AuthExtend } from './auth';
 import { JwtOptions, JwtService } from './base/jwt-service';
 import { ITokenBlacklistService } from './base/token-blacklist-service';
 import { IAccessControlService } from './base/access-control-service';
-import { DataSource } from '@nocobase/data-source-manager';
-import { JwtPayload } from 'jsonwebtoken';
 
 export interface Authenticator {
   authType: string;
@@ -65,6 +63,7 @@ export class AuthManager {
 
   setAccessControlService(service: IAccessControlService) {
     this.accessController = service;
+    this.jwt.accessController = service;
   }
 
   /**
@@ -126,9 +125,6 @@ export class AuthManager {
         resourceName = rawResourceName.split('.').pop();
       }
       const isPublicAction = ctx.dataSource.acl.isPublicAction(resourceName, actionName);
-      if (isPublicAction) {
-        return next();
-      }
       const token = ctx.getBearerToken();
       if (token && (await ctx.app.authManager.jwt.blacklist?.has(token))) {
         return ctx.throw(401, {
@@ -149,9 +145,14 @@ export class AuthManager {
         return next();
       }
       if (authenticator) {
-        const user = await ctx.auth.check();
-        if (user) {
-          ctx.auth.user = user;
+        try {
+          const user = await ctx.auth.check();
+          if (user) {
+            ctx.auth.user = user;
+          }
+        } catch (error) {
+          if (isPublicAction) return next();
+          else ctx.throw(401, error.message);
         }
       }
       await next();

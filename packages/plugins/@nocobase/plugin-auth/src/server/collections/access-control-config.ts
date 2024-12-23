@@ -61,7 +61,7 @@ export const getAccessCtrlConfig = async (db: Database) => {
   const repository = db.getRepository(secAccessCtrlConfigCollName);
 
   const res = await repository.findOne({ filterByTk: secAccessCtrlConfigKey });
-  return res?.data?.data?.config;
+  return res?.config;
 };
 
 export const saveAccessCtrlConfigToCache = async (app: Application, db: Database, cache: Cache) => {
